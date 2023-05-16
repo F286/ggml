@@ -11,7 +11,13 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
+#include "MatrixHash.h"
 
 // default hparams (GPT-J 6B)
 struct gptj_hparams {
@@ -319,6 +325,7 @@ bool gptj_model_load(const std::string & fname, gptj_model & model, gpt_vocab & 
                 ne[i] = ne_cur;
                 nelements *= ne[i];
             }
+            //std::swap(ne[0], ne[1]);
 
             std::string name(length, 0);
             fin.read(&name[0], length);
@@ -446,6 +453,18 @@ bool gptj_eval(
     // wte
     struct ggml_tensor * inpL = ggml_get_rows(ctx0, model.wte, embd);
 
+    // Copy for debugging
+    //inpL = ggml_print(ctx0, inpL, inpL);
+    //{
+    //    static int timesCalled = 0;
+    //    if (++timesCalled == 2)
+    //    {
+    //        MatrixHash<float> inpLHash{ 4096, 4, inpL->data };
+    //        //MatrixHash<float> inpLHash{ size_t(inpL->ne[0]), size_t(inpL->ne[1]), inpL->data };
+    //        std::cout << "inpLHash: \n" << inpLHash << '\n';
+    //    }
+    //}
+
     for (int il = 0; il < n_layer; ++il) {
         struct ggml_tensor * cur;
 
@@ -453,20 +472,38 @@ bool gptj_eval(
         {
             cur = ggml_norm(ctx0, inpL);
 
+            //cur = ggml_print(ctx0, cur, cur);
+
+            // Copy for debugging
+            //ggml_cpy(ctx0, cur, inpL);
+
             // cur = ln_1_g*cur + ln_1_b
             cur = ggml_add(ctx0,
                     ggml_mul(ctx0,
                         ggml_repeat(ctx0, model.layers[il].ln_1_g, cur),
                         cur),
                     ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
+
+
+            //cur = ggml_print(ctx0, cur, cur);
         }
 
         struct ggml_tensor * inpSA = cur;
 
         // self-attention
         {
-            struct ggml_tensor * Qcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur), n_embd/n_head, n_head, N), n_past, n_rot, 0);
+            struct ggml_tensor* wMul = ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur);
+            //wMul = ggml_print(ctx0, wMul, wMul);
+            struct ggml_tensor* wOutput = ggml_reshape_3d(ctx0, wMul, n_embd / n_head, n_head, N);
+            wOutput = ggml_print(ctx0, wOutput, wOutput);
+
+            struct ggml_tensor * Qcur = ggml_rope(ctx0, wOutput, n_past, n_rot, 0);
+            Qcur = ggml_print(ctx0, Qcur, Qcur);
             struct ggml_tensor * Kcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_k_proj_w, cur), n_embd/n_head, n_head, N), n_past, n_rot, 0);
+
+            //struct ggml_tensor* Qcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur), n_embd / n_head, n_head, N), n_past, n_rot, 0);
+            //struct ggml_tensor* Kcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_k_proj_w, cur), n_embd / n_head, n_head, N), n_past, n_rot, 0);
+
 
             // store key and value to memory
             {
@@ -622,10 +659,13 @@ bool gptj_eval(
 }
 
 int main(int argc, char ** argv) {
+    ggml_time_init();
+
     const int64_t t_main_start_us = ggml_time_us();
 
     gpt_params params;
-    params.model = "models/gpt-j-6B/ggml-model.bin";
+    params.model = "C:/models/ggml-model-gptj-f16.bin";
+    //params.model = "C:/models/ggml-model-gpt-j-6B.bin";// "models/gpt-j-6B/ggml-model.bin";
 
     if (gpt_params_parse(argc, argv, params) == false) {
         return 1;
@@ -639,7 +679,12 @@ int main(int argc, char ** argv) {
 
     std::mt19937 rng(params.seed);
     if (params.prompt.empty()) {
-        if( !isatty(STDIN_FILENO) ){
+#ifdef _WIN32
+        int stdin_fd = _fileno(stdin);
+#else
+        int stdin_fd = STDIN_FILENO;
+#endif
+        if( !isatty(stdin_fd) ){
             std::string line;
             while( std::getline(std::cin, line) ){
                 params.prompt = params.prompt + "\n" + line;

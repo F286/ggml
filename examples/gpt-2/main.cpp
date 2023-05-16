@@ -11,7 +11,12 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 
 // default hparams (GPT-2 117M)
 struct gpt2_hparams {
@@ -709,10 +714,11 @@ bool gpt2_eval(
 }
 
 int main(int argc, char ** argv) {
+    ggml_time_init();
     const int64_t t_main_start_us = ggml_time_us();
 
     gpt_params params;
-    params.model = "models/gpt-2-117M/ggml-model.bin";
+    params.model = "C:/models/ggml-model-gpt-2-117M.bin";// "models/gpt-2-117M/ggml-model.bin";
 
     if (gpt_params_parse(argc, argv, params) == false) {
         return 1;
@@ -726,7 +732,12 @@ int main(int argc, char ** argv) {
 
     std::mt19937 rng(params.seed);
     if (params.prompt.empty()) {
-        if( !isatty(STDIN_FILENO) ){
+#ifdef _WIN32
+        int stdin_fd = _fileno(stdin);
+#else
+        int stdin_fd = STDIN_FILENO;
+#endif
+        if (!isatty(stdin_fd)) {
             std::string line;
             while( std::getline(std::cin, line) ){
                 params.prompt = params.prompt + "\n" + line;

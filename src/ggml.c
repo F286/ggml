@@ -4262,6 +4262,32 @@ struct ggml_tensor * ggml_scale_inplace(
     return ggml_scale_impl(ctx, a, b, true);
 }
 
+// ggml_print
+
+struct ggml_tensor* ggml_print_impl(
+    struct ggml_context* ctx,
+    struct ggml_tensor* a,
+    struct ggml_tensor* b) {
+    GGML_ASSERT(ggml_nelements(a) == ggml_nelements(b));
+
+    bool is_node = false;
+
+    if ((a->grad || b->grad)) {
+        GGML_ASSERT(false); // TODO: implement backward
+        is_node = true;
+    }
+
+    // make a view of the destination
+    struct ggml_tensor* result = ggml_view_tensor(ctx, b);
+
+    result->op = GGML_OP_PRINT;
+    result->grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;
+    result->src0 = a;
+    result->src1 = b;
+
+    return result;
+}
+
 // ggml_cpy
 
 struct ggml_tensor * ggml_cpy_impl(
@@ -4295,6 +4321,14 @@ struct ggml_tensor * ggml_cpy(
         struct ggml_tensor * b) {
     return ggml_cpy_impl(ctx, a, b, false);
 }
+
+struct ggml_tensor* ggml_print(
+    struct ggml_context* ctx,
+    struct ggml_tensor* a,
+    struct ggml_tensor* b) {
+    return ggml_print_impl(ctx, a, b);
+}
+
 
 struct ggml_tensor * ggml_cpy_inplace(
         struct ggml_context * ctx,
@@ -6147,7 +6181,8 @@ static void ggml_compute_forward_silu(
 
 
 // ggml_compute_forward_norm
-
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 static void ggml_compute_forward_norm_f32(
         const struct ggml_compute_params * params,
         const struct ggml_tensor * src0,
@@ -6208,6 +6243,7 @@ static void ggml_compute_forward_norm_f32(
         }
     }
 }
+#pragma GCC pop_options
 
 static void ggml_compute_forward_norm(
         const struct ggml_compute_params * params,
@@ -7031,6 +7067,39 @@ static void ggml_compute_forward_cpy(
     ggml_compute_forward_dup(params, src0, dst);
 }
 
+// ggml_compute_forward_print
+#define DISPLAY_ITEM_COUNT 512
+
+void print_matrix_float(size_t rows, size_t columns, float* data) {
+    size_t index = 0;
+    for (size_t r = 0; r < rows; ++r) {
+        printf("[ ");
+        for (size_t c = 0; c < columns; ++c) {
+            size_t dataIndex = c * rows + r;
+            printf("%6.3f ", data[dataIndex]);
+            if (index++ > DISPLAY_ITEM_COUNT) {
+                break;
+            }
+        }
+        if (index++ > DISPLAY_ITEM_COUNT) {
+            break;
+        }
+        printf("]");
+        if (r != rows - 1) {
+            printf("\n");
+        }
+    }
+}
+
+static void ggml_compute_forward_print(
+        const struct ggml_compute_params * params,
+        const struct ggml_tensor * src0,
+        struct ggml_tensor * dst) {
+    printf("F32: \n");
+    print_matrix_float(src0->ne[0], src0->ne[1], src0->data);
+    printf("\n");
+}
+
 // ggml_compute_forward_cont
 
 static void ggml_compute_forward_cont(
@@ -7421,6 +7490,7 @@ static void ggml_compute_forward_rope_f32(
     for (int64_t i3 = 0; i3 < ne3; i3++) {
         for (int64_t i2 = (mode == 0 ? 0 : n_past); i2 < ne2; i2++) {
             const int p = (mode == 0 ? n_past + i2 : i2);
+            //const int p = (mode == 0 ? n_past + i2 + 1 : i2 + 1);
             for (int64_t i1 = 0; i1 < ne1; i1++) {
                 if (ir++ < ir0) continue;
                 if (ir   > ir1) break;
@@ -7436,9 +7506,13 @@ static void ggml_compute_forward_rope_f32(
 
                     const float x0 = src[0];
                     const float x1 = src[1];
+                          //const float x0 = 1.f;//src[0];
+                          //const float x1 = 1.f;//src[1];
 
-                    dst_data[0] = x0*cos_theta - x1*sin_theta;
-                    dst_data[1] = x0*sin_theta + x1*cos_theta;
+                    //dst_data[0] = x0;
+                    //dst_data[1] = 0.f;
+                    dst_data[0] = x0 * cos_theta - x1 * sin_theta;
+                    dst_data[1] = x0 * sin_theta + x1 * cos_theta;
                 }
             }
         }
@@ -8924,6 +8998,10 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
         case GGML_OP_FLASH_FF:
             {
                 ggml_compute_forward_flash_ff(params, tensor->src0, tensor->src1, tensor->opt[0], tensor->opt[1], tensor->opt[2], tensor);
+            } break;
+        case GGML_OP_PRINT:
+            {
+                ggml_compute_forward_print(params, tensor->src0, tensor);
             } break;
         case GGML_OP_NONE:
             {

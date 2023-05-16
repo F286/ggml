@@ -251,6 +251,8 @@ enum ggml_op {
     GGML_OP_FLASH_ATTN,
     GGML_OP_FLASH_FF,
 
+    GGML_OP_PRINT,
+
     GGML_OP_COUNT,
 };
 
@@ -519,6 +521,12 @@ struct ggml_tensor * ggml_scale(
         struct ggml_context * ctx,
         struct ggml_tensor  * a,
         struct ggml_tensor  * b);
+
+// a -> b, return view(b)
+struct ggml_tensor* ggml_print(
+    struct ggml_context* ctx,
+    struct ggml_tensor* a,
+    struct ggml_tensor* b);
 
 // a -> b, return view(b)
 struct ggml_tensor * ggml_cpy(

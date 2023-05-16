@@ -11,3 +11,10 @@ compile_commands.json
 src/arm_neon.h
 tests/arm_neon.h
 /examples/gpt-j/models/gpt-j-6B/ggml-model.bin
+/.vs/VSWorkspaceState.json
+/.vs/slnx.sqlite
+/.vs/ProjectSettings.json
+/.vs/ggml/v17
+/.vs/ggml/FileContentIndex
+/.vs/cmake.db
+/.vs/CMake Overview

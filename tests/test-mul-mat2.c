@@ -11,7 +11,11 @@
 #include <time.h>
 #include <math.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/time.h>
+#endif
 
 #if defined(__ARM_NEON)
 #include "arm_neon.h"

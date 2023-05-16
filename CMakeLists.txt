@@ -52,7 +52,7 @@ endif()
 # dependencies
 
 set(CMAKE_C_STANDARD   11)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 find_package(Threads REQUIRED)
 
