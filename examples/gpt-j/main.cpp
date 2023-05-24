@@ -499,7 +499,7 @@ bool gptj_eval(
 
             struct ggml_tensor * Qcur = ggml_rope(ctx0, wOutput, n_past, n_rot, 0);
             struct ggml_tensor * Kcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_k_proj_w, cur), n_embd/n_head, n_head, N), n_past, n_rot, 0);
-            Kcur = ggml_print(ctx0, Kcur, Kcur);
+            //Kcur = ggml_print(ctx0, Kcur, Kcur);
             //Kcur = ggml_print(ctx0, Kcur, Kcur);
 
             //struct ggml_tensor* Qcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur), n_embd / n_head, n_head, N), n_past, n_rot, 0);
@@ -508,7 +508,10 @@ bool gptj_eval(
 
             // store key and value to memory
             {
-                struct ggml_tensor * Vcur = ggml_transpose(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_v_proj_w, cur));
+                auto VcurRaw = ggml_mul_mat(ctx0, model.layers[il].c_attn_v_proj_w, cur);
+                //VcurRaw = ggml_print(ctx0, VcurRaw, VcurRaw);
+                struct ggml_tensor * Vcur = ggml_transpose(ctx0, VcurRaw);
+                Vcur = ggml_print(ctx0, Vcur, Vcur);
 
                 struct ggml_tensor * k = ggml_view_1d(ctx0, model.memory_k, N*n_embd, (ggml_element_size(model.memory_k)*n_embd)*(il*n_ctx + n_past));
                 struct ggml_tensor * v = ggml_view_2d(ctx0, model.memory_v, N, n_embd,

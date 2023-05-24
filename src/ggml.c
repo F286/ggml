@@ -7093,7 +7093,7 @@ void print_matrix_float(size_t rows, size_t columns, size_t channels, float* dat
             }
             printf("] (row=");
             printf("%u", r);
-            printf(" channel=%u", ch);
+            printf(" ch=%u", ch);
             printf(")");
             if (r != rows - 1) {
                 printf("\n");
