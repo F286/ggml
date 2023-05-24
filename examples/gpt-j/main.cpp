@@ -495,11 +495,12 @@ bool gptj_eval(
             struct ggml_tensor* wMul = ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur);
             //wMul = ggml_print(ctx0, wMul, wMul);
             struct ggml_tensor* wOutput = ggml_reshape_3d(ctx0, wMul, n_embd / n_head, n_head, N);
-            wOutput = ggml_print(ctx0, wOutput, wOutput);
+            //wOutput = ggml_print(ctx0, wOutput, wOutput);
 
             struct ggml_tensor * Qcur = ggml_rope(ctx0, wOutput, n_past, n_rot, 0);
-            Qcur = ggml_print(ctx0, Qcur, Qcur);
             struct ggml_tensor * Kcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_k_proj_w, cur), n_embd/n_head, n_head, N), n_past, n_rot, 0);
+            Kcur = ggml_print(ctx0, Kcur, Kcur);
+            //Kcur = ggml_print(ctx0, Kcur, Kcur);
 
             //struct ggml_tensor* Qcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_q_proj_w, cur), n_embd / n_head, n_head, N), n_past, n_rot, 0);
             //struct ggml_tensor* Kcur = ggml_rope(ctx0, ggml_reshape_3d(ctx0, ggml_mul_mat(ctx0, model.layers[il].c_attn_k_proj_w, cur), n_embd / n_head, n_head, N), n_past, n_rot, 0);
@@ -519,18 +520,21 @@ bool gptj_eval(
             }
 
             // Q = Qcur.contiguous().view(n_embd/n_head, n_head, N).permute(0, 2, 1, 3)
+            //Qcur = ggml_print(ctx0, Qcur, Qcur);
             struct ggml_tensor * Q =
                 ggml_permute(ctx0,
                         Qcur,
                         0, 2, 1, 3);
 
             // K = Kmem.view(n_embd/n_head, n_head, n_past + N).permute(0, 2, 1, 3)
+            //ggml_print(ctx0, model.memory_k, model.memory_k);
             struct ggml_tensor * K =
                 ggml_permute(ctx0,
                         ggml_reshape_3d(ctx0,
                             ggml_view_1d(ctx0, model.memory_k, (n_past + N)*n_embd, il*n_ctx*ggml_element_size(model.memory_k)*n_embd),
                             n_embd/n_head, n_head, n_past + N),
                         0, 2, 1, 3);
+            //K = ggml_print(ctx0, K, K);
 
             // K * Q
             struct ggml_tensor * KQ = ggml_mul_mat(ctx0, K, Q);
@@ -541,9 +545,11 @@ bool gptj_eval(
                         KQ,
                         ggml_new_f32(ctx0, 1.0f/sqrt(float(n_embd)/n_head))
                         );
+            //KQ_scaled = ggml_print(ctx0, KQ_scaled, KQ_scaled);
 
             // KQ_masked = mask_past(KQ_scaled)
             struct ggml_tensor * KQ_masked = ggml_diag_mask_inf(ctx0, KQ_scaled, n_past);
+            //KQ_masked = ggml_print(ctx0, KQ_masked, KQ_masked);
 
             // KQ = soft_max(KQ_masked)
             struct ggml_tensor * KQ_soft_max = ggml_soft_max(ctx0, KQ_masked);
@@ -571,6 +577,8 @@ bool gptj_eval(
             cur = ggml_mul_mat(ctx0,
                     model.layers[il].c_attn_proj_w,
                     cur);
+
+            //cur = ggml_print(ctx0, cur, cur);
         }
 
         struct ggml_tensor * inpFF = cur;

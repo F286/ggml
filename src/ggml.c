@@ -7068,25 +7068,39 @@ static void ggml_compute_forward_cpy(
 }
 
 // ggml_compute_forward_print
-#define DISPLAY_ITEM_COUNT 512
+#define DISPLAY_ITEM_COUNT 4096 * 4
 
-void print_matrix_float(size_t rows, size_t columns, float* data) {
-    size_t index = 0;
-    for (size_t r = 0; r < rows; ++r) {
-        printf("[ ");
-        for (size_t c = 0; c < columns; ++c) {
-            size_t dataIndex = c * rows + r;
-            printf("%6.3f ", data[dataIndex]);
+void print_matrix_float(size_t rows, size_t columns, size_t channels, float* data) {
+    printf("\n%d x %d", rows, columns);
+    if (channels > 1)
+    {
+        printf(" x %d", channels);
+    }
+    for (size_t ch = 0; ch < channels; ++ch) {
+        printf("\n");
+        size_t index = 0;
+        for (size_t r = 0; r < rows; ++r) {
+            printf("[ ");
+            for (size_t c = 0; c < columns; ++c) {
+                size_t dataIndex = ch * rows * columns + c * rows + r;
+                printf("%6.3f ", data[dataIndex]);
+                if (index++ > DISPLAY_ITEM_COUNT) {
+                    break;
+                }
+            }
             if (index++ > DISPLAY_ITEM_COUNT) {
                 break;
+            }
+            printf("] (row=");
+            printf("%u", r);
+            printf(" channel=%u", ch);
+            printf(")");
+            if (r != rows - 1) {
+                printf("\n");
             }
         }
         if (index++ > DISPLAY_ITEM_COUNT) {
             break;
-        }
-        printf("]");
-        if (r != rows - 1) {
-            printf("\n");
         }
     }
 }
@@ -7096,7 +7110,7 @@ static void ggml_compute_forward_print(
         const struct ggml_tensor * src0,
         struct ggml_tensor * dst) {
     printf("F32: \n");
-    print_matrix_float(src0->ne[0], src0->ne[1], src0->data);
+    print_matrix_float(src0->ne[0], src0->ne[1], src0->ne[2], src0->data);
     printf("\n");
 }
 
