@@ -7105,12 +7105,85 @@ void print_matrix_float(size_t rows, size_t columns, size_t channels, float* dat
     }
 }
 
+float half_to_float(uint16_t h) {
+    int sign = (h >> 15) & 0x0001;
+    int exponent = (h >> 10) & 0x001F;
+    int significand = h & 0x03FF;
+
+    int32_t s = sign ? -1 : 1;
+    int32_t e = exponent - 15;
+    int32_t f = significand;
+
+    if (exponent == 0 && significand == 0) {
+        // Positive or negative zero
+        return s * 0.0f;
+    }
+    else if (exponent == 0 && significand != 0) {
+        // Denormalized number
+        return s * powf(2.0f, -14) * (f / 1024.0f);
+    }
+    else if (exponent == 31 && significand == 0) {
+        // Positive or negative infinity
+        return s * INFINITY;
+    }
+    else if (exponent == 31 && significand != 0) {
+        // Not a Number (NaN)
+        return NAN;
+    }
+    else {
+        // Normalized number
+        return s * powf(2.0f, e) * (1.0f + (f / 1024.0f));
+    }
+}
+void print_matrix_half(size_t rows, size_t columns, size_t channels, uint16_t* data) {
+    printf("\n%d x %d", rows, columns);
+    if (channels > 1)
+    {
+        printf(" x %d", channels);
+    }
+    for (size_t ch = 0; ch < channels; ++ch) {
+        printf("\n");
+        size_t index = 0;
+        for (size_t r = 0; r < rows; ++r) {
+            printf("[ ");
+            for (size_t c = 0; c < columns; ++c) {
+                size_t dataIndex = ch * rows * columns + c * rows + r;
+                printf("%6.3f ", half_to_float(data[dataIndex]));
+                if (index++ > DISPLAY_ITEM_COUNT) {
+                    break;
+                }
+            }
+            if (index++ > DISPLAY_ITEM_COUNT) {
+                break;
+            }
+            printf("] (row=");
+            printf("%u", r);
+            printf(" ch=%u", ch);
+            printf(")");
+            if (r != rows - 1) {
+                printf("\n");
+            }
+        }
+        if (index++ > DISPLAY_ITEM_COUNT) {
+            break;
+        }
+    }
+}
+
 static void ggml_compute_forward_print(
         const struct ggml_compute_params * params,
         const struct ggml_tensor * src0,
         struct ggml_tensor * dst) {
-    printf("F32: \n");
-    print_matrix_float(src0->ne[0], src0->ne[1], src0->ne[2], src0->data);
+    if (src0->type == GGML_TYPE_F16)
+    {
+        printf("F16: \n");
+        print_matrix_half(src0->ne[0], src0->ne[1], src0->ne[2], src0->data);
+    }
+    else if (src0->type == GGML_TYPE_F32)
+    {
+        printf("F32: \n");
+        print_matrix_float(src0->ne[0], src0->ne[1], src0->ne[2], src0->data);
+    }
     printf("\n");
 }
 

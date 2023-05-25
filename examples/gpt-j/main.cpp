@@ -511,15 +511,21 @@ bool gptj_eval(
                 auto VcurRaw = ggml_mul_mat(ctx0, model.layers[il].c_attn_v_proj_w, cur);
                 //VcurRaw = ggml_print(ctx0, VcurRaw, VcurRaw);
                 struct ggml_tensor * Vcur = ggml_transpose(ctx0, VcurRaw);
-                Vcur = ggml_print(ctx0, Vcur, Vcur);
+                //Vcur = ggml_print(ctx0, Vcur, Vcur);
 
                 struct ggml_tensor * k = ggml_view_1d(ctx0, model.memory_k, N*n_embd, (ggml_element_size(model.memory_k)*n_embd)*(il*n_ctx + n_past));
                 struct ggml_tensor * v = ggml_view_2d(ctx0, model.memory_v, N, n_embd,
                         (   n_ctx)*ggml_element_size(model.memory_v),
                         (il*n_ctx)*ggml_element_size(model.memory_v)*n_embd + n_past*ggml_element_size(model.memory_v));
 
+                // Cast away const-ness using const_cast
+                gptj_model& model_mutable = const_cast<gptj_model&>(model);
+                //model_mutable.memory_k = ggml_print(ctx0, model.memory_k, model.memory_k);
+
                 ggml_build_forward_expand(&gf, ggml_cpy(ctx0, Kcur, k));
                 ggml_build_forward_expand(&gf, ggml_cpy(ctx0, Vcur, v));
+
+                //k = ggml_print(ctx0, k, k);
             }
 
             // Q = Qcur.contiguous().view(n_embd/n_head, n_head, N).permute(0, 2, 1, 3)
@@ -528,19 +534,24 @@ bool gptj_eval(
                 ggml_permute(ctx0,
                         Qcur,
                         0, 2, 1, 3);
+            //Q = ggml_print(ctx0, Q, Q);
 
             // K = Kmem.view(n_embd/n_head, n_head, n_past + N).permute(0, 2, 1, 3)
             //ggml_print(ctx0, model.memory_k, model.memory_k);
+            struct ggml_tensor* KReshape = ggml_reshape_3d(ctx0,
+                ggml_view_1d(ctx0, model.memory_k, (n_past + N) * n_embd, il * n_ctx * ggml_element_size(model.memory_k) * n_embd),
+                n_embd / n_head, n_head, n_past + N);
+            KReshape = ggml_print(ctx0, KReshape, KReshape);
             struct ggml_tensor * K =
                 ggml_permute(ctx0,
-                        ggml_reshape_3d(ctx0,
-                            ggml_view_1d(ctx0, model.memory_k, (n_past + N)*n_embd, il*n_ctx*ggml_element_size(model.memory_k)*n_embd),
-                            n_embd/n_head, n_head, n_past + N),
+                    KReshape,
                         0, 2, 1, 3);
             //K = ggml_print(ctx0, K, K);
 
             // K * Q
             struct ggml_tensor * KQ = ggml_mul_mat(ctx0, K, Q);
+
+            //KQ = ggml_print(ctx0, KQ, KQ);
 
             // KQ_scaled = KQ / sqrt(n_embd/n_head)
             struct ggml_tensor * KQ_scaled =
